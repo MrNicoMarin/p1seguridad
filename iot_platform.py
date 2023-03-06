@@ -7,8 +7,19 @@ import paho.mqtt.client as mqtt
 
 class Platform:
 
-    hmac_shared_key = b'1234'
-    shared_key = None
+    # Topics: 
+
+
+    # Plataforma
+    # Conectar un nuevo dispositivo -> seguridadiot/device/connect
+    # Enviar datos de un sensor -> seguridadiot/device/sensor
+
+
+
+    devices = []
+
+
+    hmac_shared_key = '1234'.encode('utf-8')
 
     def hmac_dh_step(self, message):
         parameters = message["info"]["parameters"]
@@ -37,9 +48,17 @@ class Platform:
             info=None,
         )
 
-        self.shared_key = kdf.derive(shared_key)
+        find = False
+        for device in self.devices:
+            if device["id"] == message["info"]["id"]:
+                device["shared_key"] = kdf.derive(shared_key)
+                find = True
+            
+        if not find:
+            self.devices.append({"id" : message["info"]["id"], "shared_key" : kdf.derive(shared_key), "type" : message["info"]["type"]})
 
         info = {
+            "id" : message["info"]["id"],
             "public_key": local_public_key.public_numbers().y
         }
 
@@ -59,24 +78,30 @@ class Platform:
 platform = Platform()
 
 def on_connect(client, userdata, flags, rc):
-    client.subscribe("nico/platform/connect")
-    client.subscribe("nico/platform/sensor")
+    client.subscribe("seguridadiot/device/connect")
+    client.subscribe("seguridadiot/device/sensor")
     print("Platform connected to broker")
 
 def on_message(client, userdata, msg):
-    if msg.topic == "nico/platform/connect":
+    if msg.topic == "seguridadiot/device/connect":
         message = platform.hmac_dh_step(json.loads(msg.payload))
-        client.publish("nico/device/connect", json.dumps(message))
+        client.publish("seguridadiot/platform/connect", json.dumps(message))
         print("New device connected")
     
-    elif msg.topic == "nico/platform/sensor":
+    elif msg.topic == "seguridadiot/device/sensor":
         message = json.loads(msg.payload)
 
         aad = message["aad"]
         nonce = bytes.fromhex(message["nonce"])
         data = bytes.fromhex(message["data"])
 
-        cipher = AESGCM(platform.shared_key)
+        shared_key = None
+        for device in platform.devices:
+            if device["id"] == aad["id"]:
+                shared_key = device["shared_key"]
+                break
+
+        cipher = AESGCM(shared_key)
 
         plaintext = cipher.decrypt(nonce, data, json.dumps(aad).encode('utf-8'))
 

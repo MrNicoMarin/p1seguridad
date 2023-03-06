@@ -9,7 +9,10 @@ import time
 import os
 
 class Device:
-    hmac_shared_key = b'1234'
+    device_id = None
+    device_type = None
+
+    hmac_shared_key = "1234".encode('utf-8')
 
     dh_parameters = None
 
@@ -23,6 +26,10 @@ class Device:
     last_key_negotiation = None
     key_timeout = 1
 
+    def __init__(self, device_id, device_type):
+        self.device_id = device_id
+        self.device_type = device_type
+
 
     def first_hmac_dh_step(self):
         self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048)
@@ -30,6 +37,8 @@ class Device:
         self.local_public_key = self.local_private_key.public_key()
 
         info = {
+            "id" : self.device_id,
+            "type" : self.device_type,
             "parameters": {"p": self.dh_parameters.parameter_numbers().p, "g": self.dh_parameters.parameter_numbers().g, "q": self.dh_parameters.parameter_numbers().q},
             "public_key": self.local_public_key.public_numbers().y
         }
@@ -69,20 +78,32 @@ class Device:
         self.last_key_negotiation = time.time()
 
 
-device = Device()
+print("Type device id:")
+device_id = int(input())
+
+print("Type device type (0 : sensor, 1 : keyboard):")
+device_type = int(input())
+
+device = Device(device_id, device_type)
+
+if device_type == 1:
+    print("Type platform password:")
+    device.hmac_shared_key = input().encode('utf-8')
 
 def on_connect(client, userdata, flags, rc):
     print("Connecting to platform...")
-    client.subscribe("nico/device/connect")
+    client.subscribe("seguridadiot/platform/connect")
     print("Starting key negotiation...")
     message = device.first_hmac_dh_step()
-    client.publish("nico/platform/connect", json.dumps(message))
+    client.publish("seguridadiot/device/connect", json.dumps(message))
 
 
 def on_message(client, userdata, msg):
-    device.second_hmac_dh_step(json.loads(msg.payload))
-    print("Key negotiation completed")
-    print("Connected to platform")
+    message = json.loads(msg.payload)
+    if msg.topic == "seguridadiot/platform/connect" and message["info"]["id"] == device.device_id:
+        device.second_hmac_dh_step(message)
+        print("Key negotiation completed")
+        print("Connected to platform")
 
 client = mqtt.Client()
 client.on_connect = on_connect
@@ -98,7 +119,7 @@ while True:
     if device.shared_key is not None:
 
         aad = {
-            "id": 1,
+            "id": device.device_id,
             "timestamp": time.time()
         }
 
@@ -119,12 +140,12 @@ while True:
             "nonce": nonce.hex()
         }
 
-        client.publish("nico/platform/sensor", json.dumps(message))
+        client.publish("seguridadiot/device/sensor", json.dumps(message))
 
         if time.time() - device.last_key_negotiation > device.key_timeout * 60:
             device.shared_key = None
             print("Starting key renegotiation...")
             message = device.first_hmac_dh_step()
-            client.publish("nico/platform/connect", json.dumps(message))
+            client.publish("seguridadiot/device/connect", json.dumps(message))
         
     time.sleep(1)
