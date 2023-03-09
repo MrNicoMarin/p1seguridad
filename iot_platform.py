@@ -2,22 +2,25 @@ from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from flask import Flask, render_template
 import json
+from mongoengine import *
 import paho.mqtt.client as mqtt
+
+class Data(EmbeddedDocument):
+    temperature = FloatField()
+    humidity = FloatField()
+
+class Info(Document):
+    device_id = IntField()
+    timestamp = FloatField()
+    data = EmbeddedDocumentField(Data)
 
 class Platform:
 
-    # Topics: 
-
-
-    # Plataforma
-    # Conectar un nuevo dispositivo -> seguridadiot/device/connect
-    # Enviar datos de un sensor -> seguridadiot/device/sensor
-
-
-
     devices = []
 
+    topics = ["seguridadiot/device/sensor"]
 
     hmac_shared_key = '1234'.encode('utf-8')
 
@@ -30,11 +33,14 @@ class Platform:
         h.update(json.dumps(message["info"]).encode('utf-8'))
 
         if h.finalize() != signature:
-            raise Exception("Signature is not valid")
-        
-        parameters_numbers = dh.DHParameterNumbers(parameters["p"], parameters["g"], parameters["q"])
+            print("Signature is not valid")
+            return None
+
+        parameters_numbers = dh.DHParameterNumbers(
+            parameters["p"], parameters["g"], parameters["q"])
         parameters = parameters_numbers.parameters()
-        remote_public_key = dh.DHPublicNumbers(remote_public_key, parameters_numbers).public_key()
+        remote_public_key = dh.DHPublicNumbers(
+            remote_public_key, parameters_numbers).public_key()
 
         local_private_key = parameters.generate_private_key()
         local_public_key = local_private_key.public_key()
@@ -53,12 +59,13 @@ class Platform:
             if device["id"] == message["info"]["id"]:
                 device["shared_key"] = kdf.derive(shared_key)
                 find = True
-            
+
         if not find:
-            self.devices.append({"id" : message["info"]["id"], "shared_key" : kdf.derive(shared_key), "type" : message["info"]["type"]})
+            self.devices.append({"id": message["info"]["id"], "shared_key": kdf.derive(
+                shared_key), "type": message["info"]["type"]})
 
         info = {
-            "id" : message["info"]["id"],
+            "id": message["info"]["id"],
             "public_key": local_public_key.public_numbers().y
         }
 
@@ -77,18 +84,21 @@ class Platform:
 
 platform = Platform()
 
+
 def on_connect(client, userdata, flags, rc):
     client.subscribe("seguridadiot/device/connect")
     client.subscribe("seguridadiot/device/sensor")
     print("Platform connected to broker")
 
+
 def on_message(client, userdata, msg):
     if msg.topic == "seguridadiot/device/connect":
         message = platform.hmac_dh_step(json.loads(msg.payload))
-        client.publish("seguridadiot/platform/connect", json.dumps(message))
-        print("New device connected")
-    
-    elif msg.topic == "seguridadiot/device/sensor":
+        if message is not None:
+            client.publish("seguridadiot/platform/connect", json.dumps(message))
+            print("New device connected")
+
+    elif msg.topic in platform.topics:
         message = json.loads(msg.payload)
 
         aad = message["aad"]
@@ -100,19 +110,38 @@ def on_message(client, userdata, msg):
             if device["id"] == aad["id"]:
                 shared_key = device["shared_key"]
                 break
-
-        cipher = AESGCM(shared_key)
-
-        plaintext = cipher.decrypt(nonce, data, json.dumps(aad).encode('utf-8'))
-
-        print("Received sensor data: {} and associated data {}".format(plaintext.decode('utf-8'), aad))
         
+        if shared_key is not None:
+            cipher = AESGCM(shared_key)
 
+            try: 
+                plaintext = cipher.decrypt(
+                    nonce, data, json.dumps(aad).encode('utf-8'))
+                
+
+                plaintext_json = json.loads(plaintext.decode('utf-8'))
+                data = Data(temperature=plaintext_json["temperature"], humidity=plaintext_json["humidity"])
+                info = Info(device_id=aad["id"], timestamp=aad["timestamp"], data=data)
+                info.save()
+            except Exception as e:
+                print("Error decrypting data")
+
+
+app = Flask(__name__)
 client = mqtt.Client()
-client.on_connect = on_connect
-client.on_message = on_message
-client.username_pw_set("public", "public")
 
-client.connect("public.cloud.shiftr.io", 1883, 60)
+@app.route("/devices")
+def devices():
+    return render_template("devices.html", devices=platform.devices)
 
-client.loop_forever()
+
+if __name__ == "__main__":
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.username_pw_set("public", "public")
+    client.connect("public.cloud.shiftr.io", 1883, 60)
+
+    connect(host="mongodb+srv://admin:admin@icd.6itjtdp.mongodb.net/Seguridad?retryWrites=true&w=majority")
+
+    client.loop_start()
+    app.run()

@@ -24,7 +24,12 @@ class Device:
     shared_key = None
 
     last_key_negotiation = None
-    key_timeout = 1
+    key_timeout = 60
+
+    data_topic = "seguridadiot/device/sensor"
+
+    send_period = 5
+
 
     def __init__(self, device_id, device_type):
         self.device_id = device_id
@@ -90,6 +95,15 @@ if device_type == 1:
     print("Type platform password:")
     device.hmac_shared_key = input().encode('utf-8')
 
+    print("Type send topic:")
+    device.data_topic = input()
+
+    print("Type send period (seconds):")
+    device.send_period = int(input())
+
+    print("Type key timeout (minutes):")
+    device.key_timeout = int(input())
+
 def on_connect(client, userdata, flags, rc):
     print("Connecting to platform...")
     client.subscribe("seguridadiot/platform/connect")
@@ -140,7 +154,7 @@ while True:
             "nonce": nonce.hex()
         }
 
-        client.publish("seguridadiot/device/sensor", json.dumps(message))
+        client.publish(device.data_topic, json.dumps(message))
 
         if time.time() - device.last_key_negotiation > device.key_timeout * 60:
             device.shared_key = None
@@ -148,4 +162,4 @@ while True:
             message = device.first_hmac_dh_step()
             client.publish("seguridadiot/device/connect", json.dumps(message))
         
-    time.sleep(1)
+    time.sleep(device.send_period)
