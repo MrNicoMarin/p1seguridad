@@ -18,7 +18,9 @@ class Info(Document):
 
 class Platform:
 
-    devices = []
+    devices_passwords = [] # {"id" : 1, "password" : "1234".encode('utf-8')}
+
+    devices = [] # {"id" : 1, "shared_key" : b'1234', "type" : "0"}
 
     topics = ["seguridadiot/device/sensor"]
 
@@ -29,7 +31,13 @@ class Platform:
         remote_public_key = message["info"]["public_key"]
         signature = bytes.fromhex(message["hmac"])
 
-        h = hmac.HMAC(self.hmac_shared_key, hashes.SHA256())
+        preshared_key = self.hmac_shared_key
+
+        for device in self.devices_passwords:
+            if device["id"] == message["info"]["id"]:
+                preshared_key = device["password"].encode('utf-8')
+
+        h = hmac.HMAC(preshared_key, hashes.SHA256())
         h.update(json.dumps(message["info"]).encode('utf-8'))
 
         if h.finalize() != signature:
