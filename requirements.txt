@@ -1,0 +1,6 @@
+cffi==1.15.1
+cryptography==39.0.2
+paho-mqtt==1.6.1
+pycairo==1.23.0
+pycparser==2.21
+PyGObject==3.42.2 
