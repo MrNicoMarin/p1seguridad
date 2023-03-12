@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.ciphers.aead import AESOCB3
 from flask import Flask, render_template
 import json
 from mongoengine import *
@@ -99,7 +100,7 @@ def on_connect(client, userdata, flags, rc):
     print("Platform connected to broker")
 
 
-def on_message(client, userdata, msg):
+def on_message(client, userdata,  ):
     if msg.topic == "seguridadiot/device/connect":
         message = platform.hmac_dh_step(json.loads(msg.payload))
         if message is not None:
@@ -120,7 +121,11 @@ def on_message(client, userdata, msg):
                 break
         
         if shared_key is not None:
-            cipher = AESGCM(shared_key)
+            if aad["encrypt"] == 0:
+                cipher = AESGCM(shared_key)
+            elif aad["encrypt"] == 1:
+                cipher = AESOCB3(shared_key)
+
 
             try: 
                 plaintext = cipher.decrypt(
