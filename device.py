@@ -1,7 +1,9 @@
+import self as self
 from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.ciphers.aead import AESOCB3
 import json
 import paho.mqtt.client as mqtt
 import random
@@ -11,6 +13,7 @@ import os
 class Device:
     device_id = None
     device_type = None
+    encryption_algorithm = None
 
     hmac_shared_key = "1234".encode('utf-8')
 
@@ -31,9 +34,10 @@ class Device:
     send_period = 5
 
 
-    def __init__(self, device_id, device_type):
+    def __init__(self, device_id, device_type, encryption_algorithm):
         self.device_id = device_id
         self.device_type = device_type
+        self.encryption_algorithm = encryption_algorithm
 
 
     def first_hmac_dh_step(self):
@@ -44,6 +48,7 @@ class Device:
         info = {
             "id" : self.device_id,
             "type" : self.device_type,
+            "encryption": self.encryption_algorithm,
             "parameters": {"p": self.dh_parameters.parameter_numbers().p, "g": self.dh_parameters.parameter_numbers().g, "q": self.dh_parameters.parameter_numbers().q},
             "public_key": self.local_public_key.public_numbers().y
         }
@@ -89,7 +94,10 @@ device_id = int(input())
 print("Type device type (0 : sensor, 1 : keyboard):")
 device_type = int(input())
 
-device = Device(device_id, device_type)
+print("Type device encryption (0 : AESGCM, 1 : AESOCB3):")
+encryption_algorithm = int(input())
+
+device = Device(device_id, device_type, encryption_algorithm)
 
 if device_type == 1:
     print("Type platform password:")
@@ -134,6 +142,7 @@ while True:
 
         aad = {
             "id": device.device_id,
+            "encrypt": device.encryption_algorithm,
             "timestamp": time.time()
         }
 
@@ -142,7 +151,10 @@ while True:
             "humidity": random.randrange(0, 100)
         }
 
-        cipher = AESGCM(device.shared_key)
+        if encryption_algorithm == 0:
+            cipher = AESGCM(self.shared_key)
+        elif encryption_algorithm == 1:
+            cipher = AESOCB3(self.shared_key)
 
         nonce = os.urandom(12)
 
