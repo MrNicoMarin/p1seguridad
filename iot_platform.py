@@ -100,7 +100,7 @@ def on_connect(client, userdata, flags, rc):
     print("Platform connected to broker")
 
 
-def on_message(client, userdata,  ):
+def on_message(client, userdata, msg):
     if msg.topic == "seguridadiot/device/connect":
         message = platform.hmac_dh_step(json.loads(msg.payload))
         if message is not None:

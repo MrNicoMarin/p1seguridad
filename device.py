@@ -1,4 +1,3 @@
-import self as self
 from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -152,9 +151,9 @@ while True:
         }
 
         if encryption_algorithm == 0:
-            cipher = AESGCM(self.shared_key)
+            cipher = AESGCM(device.shared_key)
         elif encryption_algorithm == 1:
-            cipher = AESOCB3(self.shared_key)
+            cipher = AESOCB3(device.shared_key)
 
         nonce = os.urandom(12)
 
