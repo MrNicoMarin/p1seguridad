@@ -2,7 +2,6 @@ from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.ciphers.aead import AESOCB3
 from flask import Flask, render_template
 import json
 from mongoengine import *
@@ -99,6 +98,7 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("seguridadiot/device/sensor")
     print("Platform connected to broker")
 
+messages = []
 
 def on_message(client, userdata, msg):
     if msg.topic == "seguridadiot/device/connect":
@@ -121,11 +121,7 @@ def on_message(client, userdata, msg):
                 break
         
         if shared_key is not None:
-            if aad["encrypt"] == 0:
-                cipher = AESGCM(shared_key)
-            elif aad["encrypt"] == 1:
-                cipher = AESOCB3(shared_key)
-
+            cipher = AESGCM(shared_key)
 
             try: 
                 plaintext = cipher.decrypt(
@@ -136,6 +132,7 @@ def on_message(client, userdata, msg):
                 data = Data(temperature=plaintext_json["temperature"], humidity=plaintext_json["humidity"])
                 info = Info(device_id=aad["id"], timestamp=aad["timestamp"], data=data)
                 info.save()
+                messages.append(info)
             except Exception as e:
                 print("Error decrypting data")
 
@@ -143,10 +140,18 @@ def on_message(client, userdata, msg):
 app = Flask(__name__)
 client = mqtt.Client()
 
-@app.route("/devices")
+@app.route("/")
 def devices():
     return render_template("devices.html", devices=platform.devices)
 
+@app.route("/messages")
+def display_messages():
+    return render_template("messages.html", messages=messages)
+
+@app.route("/device_messages/<int:device_id>")
+def device_messages(device_id):
+    messages = Info.objects(device_id=device_id)
+    return render_template("device_messages.html", messages=messages)
 
 if __name__ == "__main__":
     client.on_connect = on_connect
