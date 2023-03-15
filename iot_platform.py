@@ -157,10 +157,19 @@ def devices():
 def passwords():
     if request.method == "POST":
         password = request.form.get("password")
+
+        newId = next(platform.id_iter)
+
+        devices = list(filter(lambda device: device["id"] == newId, platform.devices))        
+        while len(devices) > 0:
+            newId = next(platform.id_iter)
+            devices = list(filter(lambda device: device["id"] == newId, platform.devices))
+
         passwordObj = {
-                "id" : next(platform.id_iter),
-                "password" : password
-                }
+            "id" : newId,
+            "password" : password
+        }
+
         platform.devices_passwords.append(passwordObj)
         return redirect(url_for('passwords'))
     return render_template("passwords.html", passwords=platform.devices_passwords)
