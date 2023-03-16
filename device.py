@@ -102,9 +102,6 @@ if device_type == 1:
     print("Type platform password:")
     device.hmac_shared_key = input().encode('utf-8')
 
-    print("Type send topic:")
-    device.data_topic = input()
-
     print("Type send period (seconds):")
     device.send_period = int(input())
 

@@ -2,10 +2,12 @@ from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from flask import Flask, render_template
+from cryptography.hazmat.primitives.ciphers.aead import AESOCB3
+from flask import Flask, render_template, request, redirect, url_for
 import json
 from mongoengine import *
 import paho.mqtt.client as mqtt
+import itertools
 
 class Data(EmbeddedDocument):
     temperature = FloatField()
@@ -17,7 +19,8 @@ class Info(Document):
     data = EmbeddedDocumentField(Data)
 
 class Platform:
-
+    id_iter = itertools.count()
+    
     devices_passwords = [] # {"id" : 1, "password" : "1234".encode('utf-8')}
 
     devices = [] # {"id" : 1, "shared_key" : b'1234', "type" : "0"}
@@ -43,7 +46,7 @@ class Platform:
         if h.finalize() != signature:
             print("Signature is not valid")
             return None
-
+    
         parameters_numbers = dh.DHParameterNumbers(
             parameters["p"], parameters["g"], parameters["q"])
         parameters = parameters_numbers.parameters()
@@ -77,7 +80,7 @@ class Platform:
             "public_key": local_public_key.public_numbers().y
         }
 
-        h = hmac.HMAC(self.hmac_shared_key, hashes.SHA256())
+        h = hmac.HMAC(preshared_key, hashes.SHA256())
         h.update(json.dumps(info).encode('utf-8'))
 
         signature = h.finalize()
@@ -98,7 +101,6 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("seguridadiot/device/sensor")
     print("Platform connected to broker")
 
-messages = []
 
 def on_message(client, userdata, msg):
     if msg.topic == "seguridadiot/device/connect":
@@ -121,7 +123,11 @@ def on_message(client, userdata, msg):
                 break
         
         if shared_key is not None:
-            cipher = AESGCM(shared_key)
+            if aad["encrypt"] == 0:
+                cipher = AESGCM(shared_key)
+            elif aad["encrypt"] == 1:
+                cipher = AESOCB3(shared_key)
+
 
             try: 
                 plaintext = cipher.decrypt(
@@ -132,7 +138,6 @@ def on_message(client, userdata, msg):
                 data = Data(temperature=plaintext_json["temperature"], humidity=plaintext_json["humidity"])
                 info = Info(device_id=aad["id"], timestamp=aad["timestamp"], data=data)
                 info.save()
-                messages.append(info)
             except Exception as e:
                 print("Error decrypting data")
 
@@ -141,17 +146,60 @@ app = Flask(__name__)
 client = mqtt.Client()
 
 @app.route("/")
+def index():
+    return render_template("devices.html", devices=platform.devices)
+
+@app.route("/devices")
 def devices():
     return render_template("devices.html", devices=platform.devices)
 
+@app.route("/passwords",  methods= ["POST", "GET"])
+def passwords():
+    if request.method == "POST":
+        password = request.form.get("password")
+
+        newId = next(platform.id_iter)
+
+        devices = list(filter(lambda device: device["id"] == newId, platform.devices))        
+        while len(devices) > 0:
+            newId = next(platform.id_iter)
+            devices = list(filter(lambda device: device["id"] == newId, platform.devices))
+
+        passwordObj = {
+            "id" : newId,
+            "password" : password
+        }
+
+        platform.devices_passwords.append(passwordObj)
+        return redirect(url_for('passwords'))
+    return render_template("passwords.html", passwords=platform.devices_passwords)
+
+@app.route("/passwords/delete")
+def deletePassword():
+    id = request.args.get("id")
+    for ps in platform.devices_passwords:
+        if ps["id"] == int(id):
+            platform.devices_passwords.remove(ps)
+            break
+    return redirect(url_for('passwords'))
+
+@app.route("/devices/delete")
+def deleteDevice():
+    id = request.args.get("id")
+    for device in platform.devices:
+        if device["id"] == int(id):
+            platform.devices.remove(device)
+            break
+    return redirect(url_for('devices'))
+
 @app.route("/messages")
 def display_messages():
-    return render_template("messages.html", messages=messages)
+    return render_template("messages.html", messages = Info.objects().order_by('-timestamp'))
 
-@app.route("/device_messages/<int:device_id>")
-def device_messages(device_id):
-    messages = Info.objects(device_id=device_id)
-    return render_template("device_messages.html", messages=messages)
+@app.route("/select_messages")
+def select_messages():
+    return render_template("select_messages.html", messages = Info.objects().order_by('-timestamp'))
+
 
 if __name__ == "__main__":
     client.on_connect = on_connect
