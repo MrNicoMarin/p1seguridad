@@ -70,6 +70,7 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     transition: .3s;
+<<<<<<< HEAD
 }
 
 
@@ -100,3 +101,6 @@ body {
     text-align: center;
   }
   
+=======
+}
+>>>>>>> elena

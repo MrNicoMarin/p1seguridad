@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block head %}
+
+<title title>Messages</title>
+
+<meta charset="UTF-8" />
+<meta http-equiv="refresh" content="10">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="static/css/passwords.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
+
+{% endblock %}
+
+{% block body %}
+<div class="title">
+    <h1>
+      Overview of all messages
+    </h1>
+    <button class="add-password-btn" onclick="redirectToSelectMessages()"> Select messages </button>
+</div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover">
+      <tbody>
+        {% for message in messages %}
+          <tr>
+            <td style="padding-left: 400px; vertical-align: middle;">
+              <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+  function redirectToSelectMessages() {
+      window.location.href = "select_messages";
+    }
+  </script>
+{% endblock %}
+
+

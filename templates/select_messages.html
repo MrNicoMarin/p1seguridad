@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block head %}
+<title title>Select Messages</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="static/css/passwords.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" />
+{% endblock %}
+
+{% block body %}
+<div class="title">
+  <h1>Select messages by temperature or humidity</h1>
+  <button class="add-password-btn" onclick="redirectToAllMessages()"> View all </button>
+  <button class="add-password-btn" type="submit" onclick="refreshPage()">Refresh data</button>
+</div>
+
+<ul class="nav nav-tabs justify-content-center">
+  <li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Select temperature range</a>
+    <div class="dropdown-menu">
+      <a class="dropdown-item" data-bs-toggle="tab" href="#tab2-option1">0°C - 10°C</a>
+      <a class="dropdown-item" data-bs-toggle="tab" href="#tab2-option2">11°C - 20°C</a>
+      <a class="dropdown-item" data-bs-toggle="tab" href="#tab2-option3">21°C - 30°C</a>
+    </div>
+  </li>
+  <li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Select humidity range</a>
+    <div class="dropdown-menu">
+      <a class="dropdown-item" data-bs-toggle="tab" href="#tab3-option1">0% - 30%</a>
+      <a class="dropdown-item" data-bs-toggle="tab" href="#tab3-option2">31% - 60%</a>
+      <a class="dropdown-item" data-bs-toggle="tab" href="#tab3-option3">61% - 100%</a>
+    </div>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <div class="tab-pane container fade" id="tab2-option1">
+      <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <tbody>
+              {% for message in messages %}
+              {% if message.data.temperature|int in range(0, 10) %}
+                <tr>
+                  <td style="padding-left: 310px; vertical-align: middle;">
+                    <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+                  </td>
+                </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+  </div>
+  <div class="tab-pane container fade" id="tab2-option2">
+      <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <tbody>
+              {% for message in messages %}
+                {% if message.data.temperature|int in range(11, 20) %}
+                 <tr>
+                  <td style="padding-left: 310px; vertical-align: middle;">
+                    <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+                  </td>
+                 </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+      </div>
+  </div>
+  <div class="tab-pane container fade" id="tab2-option3">
+      <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <tbody>
+              {% for message in messages %}
+              {% if message.data.temperature|int in range(21, 30) %}
+                <tr>
+                  <td style="padding-left: 310px; vertical-align: middle;">
+                    <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+                  </td>
+                </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+  </div>
+
+  <div class="tab-pane container fade" id="tab3-option1">
+      <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <tbody>
+              {% for message in messages %}
+                {% if message.data.humidity|int in range(0, 30) %}
+                 <tr>
+                  <td style="padding-left: 310px; vertical-align: middle;">
+                    <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+                  </td>
+                 </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+      </div>
+  </div>
+  <div class="tab-pane container fade" id="tab3-option2">
+      <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <tbody>
+              {% for message in messages %}
+                {% if message.data.humidity|int in range(31, 60) %}
+                 <tr>
+                  <td style="padding-left: 310px; vertical-align: middle;">
+                    <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+                  </td>
+                 </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+      </div>
+  </div>
+  <div class="tab-pane container fade" id="tab3-option3">
+      <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <tbody>
+              {% for message in messages %}
+                {% if message.data.humidity|int in range(61, 100) %}
+                 <tr>
+                  <td style="padding-left: 310px; vertical-align: middle;">
+                    <li>Device ID: {{ message.device_id }}; Timestamp: {{ message.timestamp }}; Data: Temperature = {{ message.data.temperature }}, Humidity = {{ message.data.humidity }}</li>
+                  </td>
+                 </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+      </div>
+  </div>
+
+  <script>
+    function redirectToAllMessages() {
+      window.location.href = "messages";
+    }
+
+    function refreshPage(){
+    window.location.reload();
+    }
+  </script>
+{% endblock %}

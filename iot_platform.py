@@ -192,6 +192,15 @@ def deleteDevice():
             break
     return redirect(url_for('devices'))
 
+@app.route("/messages")
+def display_messages():
+    return render_template("messages.html", messages = Info.objects().order_by('-timestamp'))
+
+@app.route("/select_messages")
+def select_messages():
+    return render_template("select_messages.html", messages = Info.objects().order_by('-timestamp'))
+
+
 if __name__ == "__main__":
     client.on_connect = on_connect
     client.on_message = on_message
