@@ -14,9 +14,17 @@
 {% block body %}
 <div class="title">
     <h1>
-        The current devices in the system
+        Current Devices in The System
     </h1>
 </div>
+
+{% if devices |count == 0 %}
+<div class="empty_state">
+    <img src="static/images/sad.png" alt="">
+    <h3 class="empty-state-title">No Devices</h3>
+    <p>There have been no devices in this section yet</p>
+  </div>
+{% endif %}
 
 <div class="grid">
     <div class="grid-cards">
