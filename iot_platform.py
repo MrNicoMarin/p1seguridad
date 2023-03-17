@@ -9,6 +9,7 @@ from mongoengine import *
 import paho.mqtt.client as mqtt
 import itertools
 
+# MongoDB Documents
 class Data(EmbeddedDocument):
     temperature = FloatField()
     humidity = FloatField()
@@ -21,25 +22,31 @@ class Info(Document):
 class Platform:
     id_iter = itertools.count()
     
+    # Pre-shared key for HMAC DH key exchanges with keyboard devices
     devices_passwords = [] # {"id" : 1, "password" : "1234".encode('utf-8')}
 
+    # Shared keys for AES encryption with all devices
     devices = [] # {"id" : 1, "shared_key" : b'1234', "type" : "0"}
 
     topics = ["seguridadiot/device/sensor"]
 
-    hmac_shared_key = '1234'.encode('utf-8')
+    # Pre-shared key for HMAC DH key exchange (default value for not keyboard devices)
+    hmac_shared_key = 'securitygroupd'.encode('utf-8')
 
     def hmac_dh_step(self, message):
         parameters = message["info"]["parameters"]
         remote_public_key = message["info"]["public_key"]
         signature = bytes.fromhex(message["hmac"])
 
+        # Load default pre-shared key
         preshared_key = self.hmac_shared_key
 
+        # Check if the device is a keyboard device added to platform
         for device in self.devices_passwords:
             if device["id"] == message["info"]["id"]:
                 preshared_key = device["password"].encode('utf-8')
 
+        # Check if the signature is valid
         h = hmac.HMAC(preshared_key, hashes.SHA256())
         h.update(json.dumps(message["info"]).encode('utf-8'))
 
@@ -47,6 +54,7 @@ class Platform:
             print("Signature is not valid")
             return None
     
+        # Get DH parameters and device public key, generate private and public keys
         parameters_numbers = dh.DHParameterNumbers(
             parameters["p"], parameters["g"], parameters["q"])
         parameters = parameters_numbers.parameters()
@@ -56,6 +64,7 @@ class Platform:
         local_private_key = parameters.generate_private_key()
         local_public_key = local_private_key.public_key()
 
+        # Derive shared key
         shared_key = local_private_key.exchange(remote_public_key)
 
         kdf = HKDF(
@@ -65,6 +74,7 @@ class Platform:
             info=None,
         )
 
+        # Create or update shared key for the device
         find = False
         for device in self.devices:
             if device["id"] == message["info"]["id"]:
@@ -75,11 +85,13 @@ class Platform:
             self.devices.append({"id": message["info"]["id"], "shared_key": kdf.derive(
                 shared_key), "type": message["info"]["type"]})
 
+        # Generate DH response with platform public key
         info = {
             "id": message["info"]["id"],
             "public_key": local_public_key.public_numbers().y
         }
 
+        # Generate HMAC signature
         h = hmac.HMAC(preshared_key, hashes.SHA256())
         h.update(json.dumps(info).encode('utf-8'))
 
@@ -95,7 +107,7 @@ class Platform:
 
 platform = Platform()
 
-
+# Connection to MQTT broker
 def on_connect(client, userdata, flags, rc):
     client.subscribe("seguridadiot/device/connect")
     client.subscribe("seguridadiot/device/sensor")
@@ -104,11 +116,14 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     if msg.topic == "seguridadiot/device/connect":
+        # If connection request, add it to platform if signature is valid
         message = platform.hmac_dh_step(json.loads(msg.payload))
         if message is not None:
+            # Send response to device
             client.publish("seguridadiot/platform/connect", json.dumps(message))
             print("New device connected")
 
+    # If data, decrypt it and save it to MongoDB
     elif msg.topic in platform.topics:
         message = json.loads(msg.payload)
 
@@ -116,12 +131,14 @@ def on_message(client, userdata, msg):
         nonce = bytes.fromhex(message["nonce"])
         data = bytes.fromhex(message["data"])
 
+        # Get shared key for the device
         shared_key = None
         for device in platform.devices:
             if device["id"] == aad["id"]:
                 shared_key = device["shared_key"]
                 break
         
+        # Decrypt data with AESGCM or AESOCB3, if no shared key, ignore
         if shared_key is not None:
             if aad["encrypt"] == 0:
                 cipher = AESGCM(shared_key)
@@ -142,6 +159,7 @@ def on_message(client, userdata, msg):
                 print("Error decrypting data")
 
 
+# Web server
 app = Flask(__name__)
 client = mqtt.Client()
 
